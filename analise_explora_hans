@@ -1,0 +1,1445 @@
+# Importando banco de dados
+setwd("D:/TRABALHO/Análises/Situação prisional/BD")
+
+dados <- read.csv2("D:/TRABALHO/Análises/Situação prisional/BD/bd_prisio.csv",
+                   header = T, dec = ',', sep = ';', quote = '"')
+
+# --------------------------------------------------------------- #
+demo()
+# Pacotes
+install.packages("data.table")
+install.packages("dplyr")
+install.packages("formattable")
+install.packages("tidyr")
+
+
+library(data.table)
+library(dplyr)
+library(formattable)
+library(tidyr)
+library(tidyverse)
+library(ggplot2)
+library(descr)
+library(dplyr)
+library(lubridate)
+library(markdown)
+library(formattable)
+library(knitr)
+library(scales)
+library(ggpubr)
+theme_set(theme_pubr())
+
+# -------------------------------------------------------------- #
+
+# Organização do banco de dados
+bd_1 <- select(dados, NU_NOTIFIC, DT_NOTIFIC, NU_ANO, SG_UF_NOT,
+               ID_MUNICIP, ID_REGIONA, ID_UNIDADE, Uni_not, DT_DIAG, NM_PACIENT,
+               DT_NASC, NU_IDADE_N, CS_SEXO, CS_GESTANT, CS_RACA,
+               CS_ESCOL_N, NM_MAE_PAC, SG_UF, ID_MN_RESI, NM_BAIRRO, NM_LOGRADO,
+               ID_RG_RESI,
+               CS_ZONA, ID_OCUPA_N, NU_LESOES, FORMACLINI, AVALIA_N,
+               CLASSOPERA, MODOENTR, MODODETECT, BACILOSCOP, DTINICTRAT,
+               ESQ_INI_N, CONTREG, NERVOSAFET, UFATUAL, ID_MUNI_AT, DT_NOTI_AT,
+               ID_UNID_AT, Uni_At, UFRESAT, MUNIRESAT, DTULTCOMP, CLASSATUAL, 
+               AVAL_ATU_N, ESQ_ATU_N, DOSE_RECEB, EPIS_RACIO, CONTEXAM, 
+               DTALTA_N, TPALTA_N)
+
+bd_1$DT_NOTI_AT <- as.Date(bd_1$DT_NOTI_AT, format = "%d/%m/%Y")
+
+bd_1 <- mutate(bd_1, ANO_NOTIF = year(bd_1$DT_NOTI_AT))
+
+view(bd_1)
+
+table(bd_1$ANO_NOTIF)
+
+bd_ord_1 <- arrange(bd_1, ANO_NOTIF) # BD ordenado pela var. ANO_NOTIF
+
+bd_anos <- filter(bd_ord_1, !(ANO_NOTIF < 2016)) # Anos antes de 2018 retirados
+bd_anos2 <- filter(bd_anos, !(ANO_NOTIF == 2020))
+
+view(bd_anos)
+view(bd_anos2)
+
+table(bd_anos2$ANO_NOTIF)
+
+##MERGE (JOIN) --------------------------------------------------------------
+bd_merge <- read.csv2("D:/TRABALHO/Análises/Situação prisional/BD/CNES_uni_prisional.csv",
+                   header = T, dec = ',', sep = ';', quote = '"')
+
+
+bd_merge_2 <- read.csv2("D:/TRABALHO/Análises/Situação prisional/BD/CNES_uni_prisional - Copia.csv",
+                      header = T, dec = ',', sep = ';', quote = '"')
+
+full.join.dplyr <- full_join(bd_anos2, bd_merge,
+                             by = c("Uni_not" = "Uni_not"))
+
+full.join.final <- full_join(full.join.dplyr, bd_merge_2,
+                             by = c("Uni_At" = "Uni_At"))
+
+full <- arrange(full.join.final, Uni_Cod_Tipo_Unid.y)
+
+table(full$Uni_Cod_Tipo_Unid.x)
+
+full %>%
+  group_by(Uni_Cod_Tipo_Unid.x, Uni_Cod_Tipo_Unid.y) %>%
+  summarize(count = n())
+
+full %>%
+  group_by(Uni_Tipo_Unidade.x) %>%
+  summarize(count = n())
+
+full %>%
+  group_by(Uni_Tipo_Unidade.x, I_OCUPA_N == 999995) %>%
+  summarize(count = n())
+
+### CONDIÇÕES  --------------------------------------------------------------
+
+full.1 <- mutate(full, "CONDIC_OCUPA" = ID_OCUPA_N == 999995)
+
+full.1 %>%
+  group_by(CONDIC_OCUPA) %>%
+  summarize(count = n())
+
+full.2 <- mutate(full.1, "CONDIC_END" = grepl("PRISIONAL", full.1$NM_BAIRRO))
+
+full.2 %>%
+  group_by(CONDIC_END) %>%
+  summarize(count = n())
+
+full.3 <- mutate(full.2, "CONDIC_END_2" = grepl("PRESIDIO", full.2$NM_BAIRRO))
+
+full.3 %>%
+  group_by(CONDIC_END_2) %>%
+  summarize(count = n())
+
+full.4 <- mutate(full.3, "CONDIC_LOGRADO" = grepl("DETENCAO", full.3$NM_LOGRADO))
+
+full.4 %>%
+  group_by(CONDIC_LOGRADO) %>%
+  summarize(count = n())
+
+full.5 <- mutate(full.4, "CONDIC_LOGRADO_2" = grepl("PRESIDIO", full.4$NM_LOGRADO))
+
+full.5 %>%
+  group_by(CONDIC_LOGRADO_2) %>%
+  summarize(count = n())
+
+full.6 <- mutate(full.5, "CONDIC_LOGRADO_3" = grepl("PRISIONAL", full.5$NM_LOGRADO))
+
+full.6 %>%
+  group_by(CONDIC_LOGRADO_3) %>%
+  summarize(count = n())
+
+full.7 <- mutate(full.6, CONDICAO_UNI_TPX = ifelse(Uni_Cod_Tipo_Unid.x < 37,
+                                                  "VERDADEIRO", "FALSO"))
+
+full.7 %>%
+  group_by(CONDICAO_UNI_TPX) %>%
+  summarize(count = n())
+
+
+full.8 <- mutate(full.7, CONDICAO_UNI_TPY = ifelse(Uni_Cod_Tipo_Unid.y < 37,
+                                                  "VERDADEIRO", "FALSO"))
+
+full.8 %>%
+  group_by(CONDICAO_UNI_TPY) %>%
+  summarize(count = n())
+
+write_delim(full.8, "full.8.csv", delim = ";")
+
+# ---------------------------------------------------------------------------
+#
+#
+#
+#
+#
+#
+#
+#
+### Banco de dados final ----------------------------------------------
+
+hans_prisio <- read.csv2("D:/TRABALHO/Análises/Situação prisional/BD/bd_sitprisio_final.csv",
+header = T, dec = ',', sep = ';', quote = '"')
+
+view(hans_prisio)
+
+# ---------------------------------------------------------------------------
+
+hans_prisio %>%
+  group_by(TPALTA_N) %>%
+  summarize(count = n())
+
+#Mudança dos valores NA para 0 (zero)
+sem_NA <- replace(x = hans_prisio$TPALTA_N, list = is.na(hans_prisio$TPALTA_N),
+                     values = 0)
+
+hans_prisio["alta_"] <- sem_NA #Incorporar nova variável "alta_" no BD
+
+hans_prisio %>%
+  group_by(alta_) %>%
+  summarize(count = n())
+
+hs_st_prisio <- filter(hans_prisio, alta_ != 8)
+
+
+view(hs_st_prisio)
+
+hs_st_prisio %>%
+  filter(EXCLU_ENTRAD != 1) %>%
+  group_by(MODOENTR) %>%
+  summarize(count = n())
+
+
+hs_st_prisio %>%
+  filter(EXCLU_SAIDA != 1) %>%
+  group_by(alta_) %>%
+  summarize(count = n())
+
+# Gráfico de barras
+hs_st_prisio %>%
+  filter(EXCLU_ENTRAD != 1) %>%
+  ggplot(mapping = aes(x = MODOENTR)) +
+  geom_bar()
+
+
+
+hs_st_prisio %>%
+  filter(EXCLU_SAIDA != 1) %>%
+  ggplot(mapping = aes(x = alta_)) +
+  geom_bar(color = "firebrick1", fill = "firebrick1") +
+  ylim(0, 300) +
+  theme_classic() +
+  geom_text(aes(label=..count..), stat="count", vjust = -1)
+
+
+table(hs_st_prisio$EXCLU_ENTRAD)
+table(hs_st_prisio$EXCLU_SAIDA)
+
+
+### ORGANIZAÇÃO DAS VARIÁVEIS  ------------------------------------------------
+
+## Criada variável ano_diag
+prisio$DT_DIAG <- as.Date(prisio$DT_DIAG, format = "%d/%m/%Y")
+
+prisio <- mutate(prisio, ano_diag = year(prisio$DT_DIAG))
+
+
+prisio <- hs_st_prisio
+
+
+table(prisio$ano_diag)
+
+
+prisio <- filter(prisio, !(ano_diag < 2016)) # Anos antes de 2016 retirados
+
+
+#
+#
+#
+#
+#
+# ORGANIZAÇÃO DAS VARIÁVEIS ------------------------------------------------
+# CASOS ------------------------------------------------------------------
+# 0 - nÃO PPL; 1 - PPL
+prisio %>%
+  group_by(casos_cat) %>%
+  summarize(count = n())
+
+
+prisio$casos_cat <- ifelse(prisio$casos == 0, "Pop. não prisional (n=135.144)",
+                          ifelse(prisio$casos == 1, "Pop. prisional (n=577)", NA))
+
+
+# SEXO ---------------------------------------------------------------
+# 0 - Feminino; 1 - Masculino
+prisio %>%
+  group_by(CS_SEXO) %>%
+  summarise(count = n())
+
+
+prisio <- mutate(prisio, sexo_ = ifelse(CS_SEXO == "F", 0, 1))
+
+prisio$sexo_cat <- ifelse(prisio$CS_SEXO == 'F', "Feminino",
+                       ifelse(prisio$CS_SEXO == 'M', "Masculino", NA))
+
+
+
+  ## FAIXA ETÁRIA ------------------------------------------------
+# Idade hans: 0 - 0 a 14 anos; 15 e mais
+prisio$DT_DIAG <- as.Date(prisio$DT_DIAG, format = "%d/%m/%Y")
+prisio <- mutate(prisio, ano_diag = year(prisio$DT_DIAG))
+
+prisio$DT_NASC <- as.Date(prisio$DT_NASC, format = "%d/%m/%Y")
+prisio <- mutate(prisio, ano_nasc = year(prisio$DT_NASC))
+
+prisio$DTULTCOMP <- as.Date(prisio$DTULTCOMP, format = "%d/%m/%Y")
+prisio <- mutate(prisio, ulti_comp = year(prisio$DTULTCOMP))
+
+
+# Calcula a a idade
+dif.idade <- (round((difftime(prisio$DT_DIAG, prisio$DT_NASC,
+                              units = 'days')/365.25), digits = 0))
+
+prisio["dif.idade"] <- dif.idade #Incorpora a variável dif.idade no BD
+
+
+# idade_hans: 0 - 0 a 17 anos; 1 - 18 a 29; 2 - 30 a 59; 3 - 60+
+prisio <- prisio %>%
+  mutate(idade = case_when(dif.idade >= 60 ~ '3',
+                           dif.idade >= 30  & dif.idade <= 59 ~ '2',
+                           dif.idade >= 15  & dif.idade <= 29 ~ '1',
+                           dif.idade >= 0 & dif.idade <= 14 ~ '0'))
+
+
+prisio <- prisio %>%
+  mutate(idade = case_when(dif.idade >= 60 ~ '3',
+                           dif.idade >= 30 & dif.idade <= 59 ~ '2',
+                           dif.idade >= 18 & dif.idade <= 29 ~ '1',
+                           dif.idade >= 0 & dif.idade < 18 ~ '0'))
+
+
+prisio <- prisio %>%
+  mutate(idade_cat = case_when(dif.idade >= 60 ~ '60+',
+                           dif.idade >= 30 & dif.idade <= 59 ~ '30 a 59',
+                           dif.idade >= 18 & dif.idade <= 29 ~ '18 a 29',
+                           dif.idade >= 0 & dif.idade < 18 ~ '0 a 17 anos'))
+
+
+
+
+## RAÇA/COR:  ----------------------------------------------------------
+prisio %>%
+  group_by(CS_RACA) %>%
+  summarize(count = n())
+
+# raça: 0 - 1, 3 e 5 (não negros); 1 - 2 e 4 (negros)
+prisio$raca <- ifelse(
+  prisio$CS_RACA == 1, "0",
+  ifelse(prisio$CS_RACA == 2, "1",
+         ifelse(prisio$CS_RACA == 3, "0",
+                ifelse(prisio$CS_RACA == 4, "1",
+                       ifelse(prisio$CS_RACA == 5, "0", NA))))
+)
+
+
+
+prisio$raca_cat <- ifelse(
+  prisio$CS_RACA == 1, "Não negra",
+  ifelse(prisio$CS_RACA == 2, "Negra",
+         ifelse(prisio$CS_RACA == 3, "Não negra",
+                ifelse(prisio$CS_RACA == 4, "Negra",
+                       ifelse(prisio$CS_RACA == 5, "Não negra", NA))))
+)
+
+
+
+
+## GESTANTE  ----------------------------------------------------------
+prisio %>%
+  group_by(CS_GESTANT) %>%
+  summarize(count = n())
+
+
+## ESCOLARIDADE  -----------------------------------------------------
+prisio %>%
+  group_by(CS_ESCOL_N) %>%
+  summarize(count = n())
+
+# Escolaridade: 0 - 0 (analfabeto); 1 - 1, 2, 3 e 4 (fundamental); 3 - 7 e 8 (superior)
+prisio$escol <- ifelse(
+  prisio$CS_ESCOL_N == 0, "0",
+  ifelse(prisio$CS_ESCOL_N == 1, "1",
+         ifelse(prisio$CS_ESCOL_N == 2, "1",
+                ifelse(prisio$CS_ESCOL_N == 3, "1",
+                       ifelse(prisio$CS_ESCOL_N == 4, "1",
+                              ifelse(prisio$CS_ESCOL_N == 5, "2",
+                                     ifelse(prisio$CS_ESCOL_N == 6, "2",
+                                            ifelse(prisio$CS_ESCOL_N == 7, "3",
+                                                   ifelse(prisio$CS_ESCOL_N == 8, "3",
+                                                          NA))))))))
+)
+
+
+prisio$escol_cat <- ifelse(
+  prisio$CS_ESCOL_N == 0, "Analfabeto",
+  ifelse(prisio$CS_ESCOL_N == 1, "Ensino fundamental",
+         ifelse(prisio$CS_ESCOL_N == 2, "Ensino fundamental",
+                ifelse(prisio$CS_ESCOL_N == 3, "Ensino fundamental",
+                       ifelse(prisio$CS_ESCOL_N == 4, "Ensino fundamental",
+                              ifelse(prisio$CS_ESCOL_N == 5, "Ensino médio",
+                                     ifelse(prisio$CS_ESCOL_N == 6, "Ensino médio",
+                                            ifelse(prisio$CS_ESCOL_N == 7, "Ensino superior",
+                                                   ifelse(prisio$CS_ESCOL_N == 8, "Ensino superior",
+                                                          NA))))))))
+  )
+
+
+
+
+## ZONA DE RESIDÊNCIA  ------------------------------------------------------
+prisio %>%
+  group_by(CS_ZONA) %>%
+  summarize(count = n())
+
+
+# Zona de residência: 0 - 1 (urbana); 1 - 2 (rural e periurbana)
+prisio$zona <- ifelse(prisio$CS_ZONA == 1, "0",
+                       ifelse(prisio$CS_ZONA == 2, "1",
+                              ifelse(prisio$CS_ZONA == 3, "1", NA)))
+
+prisio$zona_cat <- ifelse(prisio$CS_ZONA == 1, "Urbana",
+                      ifelse(prisio$CS_ZONA == 2, "Rural",
+                             ifelse(prisio$CS_ZONA == 3, "Periurbana", NA)))
+
+
+
+
+
+## AVALIAÇÃO DO GIF -----------------------------------------------------------
+prisio %>%
+  group_by(AVALIA_N) %>%
+  summarize(count = n())
+
+# 0 - 0 GIF 0; 1-1 GIF 1; 2- 2 GIF 2; 3 - 3 Não avaliado
+prisio$gif_aval <- ifelse(
+  prisio$AVALIA_N == 0, '0',
+  ifelse(prisio$AVALIA_N == 1, '1',
+         ifelse(prisio$AVALIA_N == 2, '2',
+                ifelse(prisio$AVALIA_N == 3, '3', NA))))
+
+
+prisio$gif_aval_cat <- ifelse(
+  prisio$AVALIA_N == 0, '0',
+  ifelse(prisio$AVALIA_N == 1, '1',
+         ifelse(prisio$AVALIA_N == 2, '2',
+                ifelse(prisio$AVALIA_N == 3, 'Não avaliado', NA))))
+
+
+
+
+## CLASSIFICAÇÃO OPERACIONAL -------------------------------------------------
+prisio %>%
+  group_by(CLASSOPERA) %>%
+  summarize(count = n())
+
+# Classificação operacional: 0 - 1 (paucibacilar; 1 - 2 (multibacilar)
+prisio <- mutate(prisio, classopera_ = ifelse(CLASSOPERA == 1, 0, 1))
+
+prisio$classopera_cat <- ifelse(prisio$CLASSOPERA == 2, 'Multibacilar',
+                          ifelse(prisio$CLASSOPERA == 1, 'Paucibacilar', NA))
+
+
+
+
+## FORMA CLÍNICA ------------------------------------------------------------
+prisio %>%
+  group_by(FORMACLINI) %>%
+  summarize(count = n())
+
+# Forma clínica: 0- 1 (indeterminada); 1- 2 (tuberculóide); 2- 3 (dimorfa);
+#               3- 4 (virchowiana); 4- 5 (não classificada)
+prisio$formaclini_ <- ifelse(
+  prisio$FORMACLINI == 1, '0',
+  ifelse(prisio$FORMACLINI == 2, '1',
+         ifelse(prisio$FORMACLINI == 3, '2',
+                ifelse(prisio$FORMACLINI == 4, '3',
+                       ifelse(prisio$FORMACLINI == 5, '4', NA)))))
+
+
+prisio$formaclini_cat <- ifelse(
+  prisio$FORMACLINI == 1, '1) Indeterminada',
+  ifelse(prisio$FORMACLINI == 2, '2) Tuberculóide',
+         ifelse(prisio$FORMACLINI == 3, '3) Dimorfa',
+                ifelse(prisio$FORMACLINI == 4, '4) Virchowiana',
+                       ifelse(prisio$FORMACLINI == 5, '5) Não classificada',
+                              NA))))
+  )
+
+
+
+
+
+
+## NÚMERO DE LESÕES  ----------------------------------------------------
+prisio %>%
+  group_by(NU_LESOES) %>%
+  summarize(count = n())
+
+prisio$lesoes_ <- prisio$NU_LESOES
+
+summary(prisio$lesoes_)
+
+
+prisio$lesoes_cat <- ifelse(
+  prisio$NU_LESOES < 5, '< 5',
+  ifelse(prisio$NU_LESOES >= 5, '5 e mais',
+                              NA)
+)
+
+
+### MODO DE ENTRADA ----------------------------------------------
+prisio %>%
+  group_by(MODOENTR) %>%
+  summarize(count = n())
+
+# MOdo de entrada: 0- 1 (caso novo); 1- 6 (recidiva); 2- 7 (outros ingressos);
+#                  3- 2,3,4,5 (transferências)
+prisio$modoentr_ <- ifelse(
+  prisio$MODOENTR == 1, '0',
+  ifelse(prisio$MODOENTR == 2, '3',
+         ifelse(prisio$MODOENTR == 3, '3',
+                ifelse(prisio$MODOENTR == 4, '3',
+                       ifelse(prisio$MODOENTR == 5, '3',
+                              ifelse(prisio$MODOENTR == 6, '1',
+                                     ifelse(prisio$MODOENTR == 7, '2',
+                                            NA))))))
+  )
+
+
+prisio$modoentr_cat <- ifelse(
+  prisio$MODOENTR == 1, 'Caso novo',
+  ifelse(prisio$MODOENTR == 2, 'Transferências',
+         ifelse(prisio$MODOENTR == 3, 'Transferências',
+                ifelse(prisio$MODOENTR == 4, 'Transferências',
+                       ifelse(prisio$MODOENTR == 5, 'Transferências',
+                              ifelse(prisio$MODOENTR == 6, 'Recidiva',
+                                     ifelse(prisio$MODOENTR == 7, 'Outros ingressos',
+                                            NA))))))
+  )
+
+
+
+
+
+## MODO DE DETECÇÃO -----------------------------------------------------
+prisio %>%
+  group_by(MODODETECT) %>%
+  summarize(count = n())
+
+# Modo de detecção: 0- 1 (encaminhamento); 1- 2 (demanda espontânea);
+#                    2- 3 (exame de coletividade); 3- 4 (exame de contatos);
+#                    4- 5 (outros modos)
+prisio$mododetect_ <- ifelse(
+  prisio$MODODETECT == 1, '0',
+  ifelse(prisio$MODODETECT == 2, '1',
+         ifelse(prisio$MODODETECT == 3, '2',
+                ifelse(prisio$MODODETECT == 4, '3',
+                       ifelse(prisio$MODODETECT == 5, '4',
+                              NA))))
+  )
+
+
+prisio$mododetect_cat <- ifelse(
+  prisio$MODODETECT == 1, 'Encaminhamento',
+  ifelse(prisio$MODODETECT == 2, 'Demanda espontânea',
+         ifelse(prisio$MODODETECT == 3, 'Exame de coletividade',
+                ifelse(prisio$MODODETECT == 4, 'Exame de contatos',
+                       ifelse(prisio$MODODETECT == 5, 'Outros modos',
+                              NA))))
+  )
+
+
+
+
+
+## BACILOSCOPIA --------------------------------------------------------
+prisio %>%
+  group_by(BACILOSCOP) %>%
+  summarize(count = n())
+
+# Baciloscopia: 0- 1 (positiva); 1- 2 (negativa); 2- 3 (não realizada)
+prisio$baciloscop_ <- ifelse(
+  prisio$BACILOSCOP == 1, '0',
+  ifelse(prisio$BACILOSCOP == 2, '1',
+         ifelse(prisio$BACILOSCOP == 3, '2',
+                NA))
+  )
+
+
+prisio$baciloscop_cat <- ifelse(
+  prisio$BACILOSCOP == 1, '1) Positiva',
+  ifelse(prisio$BACILOSCOP == 2, '2) Negativa',
+         ifelse(prisio$BACILOSCOP == 3, '3) Não realizada',
+                NA))
+  )
+
+
+
+
+
+### ESQUEMA TERAPÊUTICO INICIAL ---------------------------------------
+prisio %>%
+  group_by(ESQ_INI_N) %>%
+  summarize(count = n())
+
+# Esquema terapêutico inicial: 0- 1 (PQT 6 doses); 1- 2 (PQT 12 doses);
+# 2- 3 (outros esquemas substitutivos)
+prisio$esq_ini_ <- ifelse(
+  prisio$ESQ_INI_N == 1, '0',
+  ifelse(prisio$ESQ_INI_N == 2, '1',
+         ifelse(prisio$ESQ_INI_N == 3, '2',
+                NA))
+  )
+
+
+
+prisio$esq_ini_cat <- ifelse(
+  prisio$ESQ_INI_N == 1, '1) PQT 6 doses',
+  ifelse(prisio$ESQ_INI_N == 2, '2) PQT 12 doses',
+         ifelse(prisio$ESQ_INI_N == 3, '3) Outros esquema sub.',
+                NA))
+  )
+
+
+
+
+
+# ESQUEMA TERAPÊUTICO ATUAL ------------------------------------------------
+
+prisio %>%
+  group_by(ESQ_ATU_N) %>%
+  summarize(count = n())
+
+# Esquema terapêutico inicial: 0- 1 (PQT 6 doses); 1- 2 (PQT 12 doses);
+# 2- 3 (outros esquemas substitutivos)
+prisio$esq_atu_ <- ifelse(
+  prisio$ESQ_ATU_N == 1, '0',
+  ifelse(prisio$ESQ_ATU_N == 2, '1',
+         ifelse(prisio$ESQ_ATU_N == 3, '2',
+                NA))
+  )
+
+
+
+prisio$esq_atu_cat <- ifelse(
+  prisio$ESQ_ATU_N == 1, '1) PQT 6 doses',
+  ifelse(prisio$ESQ_ATU_N == 2, '2) PQT 12 doses',
+         ifelse(prisio$ESQ_ATU_N == 3, '3) Outros esquema sub.',
+                NA))
+  )
+
+
+
+
+
+### CONTATOS REGISTRADOS -----------------------------------------------
+prisio %>%
+  group_by(CONTREG) %>%
+  summarize(count = n())
+
+
+prisio$contreg_ <- prisio$CONTREG
+
+
+
+
+### CONTATOS EXAMINADOS --------------------------------------------
+prisio %>%
+  group_by(CONTEXAM) %>%
+  summarize(count = n())
+
+
+prisio$contexam_ <- prisio$CONTEXAM
+
+
+
+
+
+### NERVOS AFETADOS ----------------------------------------------------
+prisio %>%
+  group_by(NERVOSAFET) %>%
+  summarize(count = n())
+
+prisio$nervos_ <- prisio$NERVOSAFET
+
+
+
+
+
+## TIPO DE SAÍDA --------------------------------------------------------
+prisio %>%
+  group_by(TPALTA_N) %>%
+  summarize(count = n())
+
+#Mudança dos valores NA para 0 (zero)
+sem_NA <- replace(x = prisio$TPALTA_N, list = is.na(prisio$TPALTA_N),
+                  values = 0)
+
+prisio["alta"] <- sem_NA #Incorporar nova variável "alta_" no BD
+
+prisio %>%
+  group_by(alta) %>%
+  summarize(count = n())
+
+prisio <- filter(prisio, alta != 8)
+
+
+
+# Tipode saída: 0- registro ativo; 1- cura; 2- óbito; 3 - abandono; 
+#4 - transferências (3, 4, 5 e 9)
+prisio$alta_ <- ifelse(
+  prisio$alta == 0, '0',
+  ifelse(prisio$alta == 1, '1',
+         ifelse(prisio$alta == 2, '4',
+                ifelse(prisio$alta == 3, '4',
+                       ifelse(prisio$alta == 4, '4',
+                              ifelse(prisio$alta == 9, '4',
+                                     ifelse(prisio$alta == 6, '2',
+                                            ifelse(prisio$alta == 7, '3',
+                                                   NA)))))))
+  )
+
+
+
+
+prisio$alta_cat <- ifelse(
+  prisio$alta_ == 0, 'Registro ativo',
+  ifelse(prisio$alta_ == 1, 'Cura',
+         ifelse(prisio$alta_ == 2, 'Óbitos',
+                ifelse(prisio$alta_ == 3, 'Abandono',
+                       ifelse(prisio$alta_ == 4, 'Transferências',
+                                                   NA))))
+  )
+
+
+
+
+
+### UNIDADE DA FEDERAÇÃO ------------------------------------------------
+prisio %>%
+  filter(EXCLU_ENTRAD != 1) %>%
+  group_by(SG_UF) %>%
+  summarize(n = n()) %>%
+  mutate(freq = n / sum(n) * 100) %>%
+  print(n = 25)
+
+
+library(data.table)
+
+?dcast.data.table
+
+prisio2 <- data.table(prisio)
+
+dcast.data.table(prisio2, ano_diag ~ esq_ini_, value.var = 'classopera_cat')
+
+dcast.data.table(prisio2, SG_UF ~ ano_diag, value.var = 'SG_UF')
+
+
+
+prisio$uf_cat <- ifelse(
+  prisio$SG_UF == 11, 'RO',
+  ifelse(prisio$SG_UF == 12, 'AC',
+  ifelse(prisio$SG_UF == 13, 'AM',
+  ifelse(prisio$SG_UF == 14, 'RR',
+  ifelse(prisio$SG_UF == 15, 'PA',
+  ifelse(prisio$SG_UF == 16, 'AP',
+  ifelse(prisio$SG_UF == 17, 'TO',
+  ifelse(prisio$SG_UF == 21, 'MA',
+  ifelse(prisio$SG_UF == 22, 'PI',
+  ifelse(prisio$SG_UF == 23, 'CE',
+  ifelse(prisio$SG_UF == 24, 'RN',
+  ifelse(prisio$SG_UF == 25, 'PB',
+  ifelse(prisio$SG_UF == 26, 'PE',       
+  ifelse(prisio$SG_UF == 27, 'AL',      
+  ifelse(prisio$SG_UF == 28, 'SE',       
+  ifelse(prisio$SG_UF == 29, 'BA',
+  ifelse(prisio$SG_UF == 31, 'MG',
+  ifelse(prisio$SG_UF == 32, 'ES',
+  ifelse(prisio$SG_UF == 33, 'RJ',
+  ifelse(prisio$SG_UF == 35, 'SP',
+  ifelse(prisio$SG_UF == 41, 'PR',
+  ifelse(prisio$SG_UF == 42, 'SC',
+  ifelse(prisio$SG_UF == 43, 'RS',
+  ifelse(prisio$SG_UF == 50, 'MS',
+  ifelse(prisio$SG_UF == 51, 'MT',
+  ifelse(prisio$SG_UF == 52, 'GO',
+  ifelse(prisio$SG_UF == 53, 'DF',
+  NA)))))))))))))))))))))))))))
+
+
+
+
+## BD PRISIO ----------------------------------------------------------------
+write_delim(prisio, "prisio.csv", delim = ";")
+
+prisio <- read.csv2("D:/TRABALHO/Análises/Situação prisional/BD/prisio.csv",
+                    header = T, dec = ',', sep = ';', quote = '"')
+
+ 
+
+prisio_copia <- read.csv2("D:/TRABALHO/Análises/Situação prisional/BD/prisio_copia.csv",
+                    header = T, dec = ',', sep = ';', quote = '"')
+
+
+
+### ANÁLISE DE DADOS ---------------------------------------------------
+# SEXO
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, casos == 0, !is.na(sexo_cat)) %>%
+  group_by(sexo_cat) %>%
+  summarise(n = n()) %>%
+  mutate(freq = n / sum(n) * 100)
+
+
+
+#gráfico sexo
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, !is.na(sexo_cat)) %>%
+  ggplot(mapping = aes(x = sexo_cat, y = ..prop.., group = 1)) +
+  geom_bar(color = 'salmon', fill = 'salmon') +
+  theme_pubclean() +
+  geom_text(aes(label = scales::percent(round(..prop.., 2)), 
+                y=..prop..), stat="count", vjust=-.5) +
+  scale_y_continuous(limits = c(0, 1), labels = scales::percent) +
+  labs(x  =  'Sexo', y  =  '%', caption  =  'Fonte: Sinan/SVS/MS.     Valores NA excluídos.') +
+  theme(plot.caption = element_text(size = 8, hjust = 0),
+        plot.background = element_rect(fill = "gray92")) +
+  facet_grid(. ~ casos_cat)
+
+
+
+
+
+## FAIXA ETÁRIA
+# Idade hans: 0 - 0 a 14 anos; 15 e mais
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, casos == 1) %>%
+  group_by(idade_cat) %>%
+  summarize(n = n()) %>%
+  mutate(freq = n / sum(n) * 100)
+
+# gráfico
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, !is.na(idade_cat)) %>%
+  ggplot(mapping = aes(x = idade_cat, y = ..prop.., group = 1)) +
+  geom_bar(color = 'salmon', fill = 'salmon') +
+  theme_pubclean() +
+  geom_text(aes(label = scales::percent(round(..prop.., 2)), 
+                y=..prop..), stat="count", vjust=-.5) +
+  scale_y_continuous(limits = c(0, 1),labels = scales::percent) +
+  labs(x  =  'Faixa etária', y  =  '%', caption  =  'Fonte: Sinan/SVS/MS.    Valores NA excluídos') +
+  theme(plot.caption = element_text(size = 8, hjust = 0),
+        plot.background = element_rect(fill = "gray92")) +
+  facet_grid(. ~ casos_cat)
+
+
+
+
+
+## RAÇA/COR
+# raça: 0 - 1, 3 e 5 (não negros); 1 - 2 e 4 (negros)
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, casos == 1, !is.na(raca_cat)) %>%
+  group_by(raca_cat) %>%
+  summarize(n = n()) %>%
+  mutate(freq = n / sum(n) * 100)
+
+# gráfico
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, !is.na(raca_cat)) %>%
+  ggplot(mapping = aes(x = raca_cat, y = ..prop.., group = 1)) +
+  geom_bar(color = c('cornflowerblue'), fill = c('cornflowerblue'), na.rm = TRUE) +
+  theme_pubclean() +
+  geom_text(aes(label = scales::percent(round(..prop.., 2)), 
+                y=..prop..), stat="count", vjust=-.5) +
+  scale_y_continuous(limits = c(0, 1),labels = scales::percent) +
+  labs(x  =  'Raça/cor', y  =  '%', caption  =  'Fonte: Sinan/SVS/MS.   Valores NA excluídos') +
+  theme(plot.caption = element_text(size = 8, hjust = 0),
+        plot.background = element_rect(fill = "gray92")) +
+  facet_grid(. ~ casos_cat)
+
+
+
+
+## ESCOLARIDADE 
+# Escolaridade: 0 - 0 (analfabeto); 1 - 1, 2, 3 e 4 (fundamental); 3 - 7 e 8 (superior)
+
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, casos == 0) %>%
+  group_by(escol_cat) %>%
+  summarize(n = n()) %>%
+  mutate(freq = n / sum(n) * 100)
+
+# gráfico
+prisio %>%
+  filter(EXCLU_ENTRAD != 1) %>%
+  ggplot(mapping = aes(x = escol_cat, y = ..prop.., group = 1)) +
+  geom_bar(color = 'cornflowerblue', fill = 'cornflowerblue') +
+  theme_pubclean() +
+  geom_text(aes(label = scales::percent(round(..prop.., 2)), 
+                y=..prop..), stat="count", vjust=-.5) +
+  scale_y_continuous(limits = c(0, 1),labels = scales::percent) +
+  labs(x  =  'Escolaridade', y  =  '%', caption  =  'Fonte: Sinan/SVS/MS.') +
+  theme(plot.caption = element_text(size = 8, hjust = 0),
+        plot.background = element_rect(fill = "gray92")) +
+  facet_grid(. ~ casos_cat) + theme(axis.text.x = element_text(angle = 10))
+
+
+
+
+## ZONA DE RESIDÊNCIA 
+
+# Zona de residência: 0 - 1 (urbana); 1 - 2 (rural e periurbana)
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, casos == 0, !is.na(zona_cat)) %>%
+  group_by(zona_cat) %>%
+  summarize(n = n()) %>%
+  mutate(freq = n / sum(n) * 100)
+
+# gráfico
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, !is.na(zona_cat)) %>%
+  ggplot(mapping = aes(x = zona_cat, y = ..prop.., group = 1)) +
+  geom_bar(color = 'cornflowerblue', fill = 'cornflowerblue') +
+  theme_pubclean() +
+  geom_text(aes(label = scales::percent(round(..prop.., 2)), 
+                y=..prop..), stat="count", vjust=-.5) +
+  scale_y_continuous(limits = c(0, 1),labels = scales::percent) +
+  labs(x  =  'Zona e residência', y  =  '%', caption  =  'Fonte: Sinan/SVS/MS.   Valores NA excluídos') +
+  theme(plot.caption = element_text(size = 8, hjust = 0),
+        plot.background = element_rect(fill = "gray92")) +
+  facet_grid(. ~ casos_cat)
+
+
+
+
+## AVALIAÇÃO DO GIF 
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, casos == 0, !is.na(gif_aval_cat)) %>%
+  group_by(gif_aval_cat) %>%
+  summarize(n = n()) %>%
+  mutate(freq = n / sum(n) * 100)
+
+
+# gráfico
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, !is.na(gif_aval_cat)) %>%
+  ggplot(mapping = aes(x = gif_aval_cat, y = ..prop.., group = 1)) +
+  geom_bar(color = 'tomato2', fill = 'tomato2') +
+  theme_pubclean() +
+  geom_text(aes(label = scales::percent(round(..prop.., 2)), 
+                y=..prop..), stat="count", vjust=-.5) +
+  scale_y_continuous(limits = c(0, 1),labels = scales::percent) +
+  labs(x  = 'Grau de incapacidade física', y =  '%', caption  = 'Fonte: Sinan/SVS/MS.') +
+  theme(plot.caption = element_text(size = 8, hjust = 0),
+        plot.background = element_rect(fill = "gray92")) +
+  facet_grid(. ~ casos_cat)
+
+
+
+
+## CLASSIFICAÇÃO OPERACIONAL 
+
+# Classificação operacional: 0 - 1 (paucibacilar; 1 - 2 (multibacilar)
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, casos == 0, !is.na(classopera_cat)) %>%
+  group_by(classopera_cat) %>%
+  summarize(n = n()) %>%
+  mutate(freq = n / sum(n) * 100)
+
+
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, !is.na(classopera_cat)) %>%
+  ggplot(mapping = aes(x = classopera_cat, y = ..prop.., group = 1)) +
+  geom_bar(color = 'tomato2', fill = 'tomato2') +
+  theme_pubclean() +
+  geom_text(aes(label = scales::percent(round(..prop.., 2)), 
+                y=..prop..), stat="count", vjust=-.5) +
+  scale_y_continuous(limits = c(0, 1),labels = scales::percent) +
+  labs(x  = 'Classificação operacional', y =  '%', caption  = 'Fonte: Sinan/SVS/MS.   Valores NA excluídos.') +
+  theme(plot.caption = element_text(size = 8, hjust = 0),
+        plot.background = element_rect(fill = "gray92")) +
+  facet_grid(. ~ casos_cat)
+
+
+
+## FORMA CLÍNICA 
+# Forma clínica: 0- 1 (indeterminada); 1- 2 (tuberculóide); 2- 3 (dimorfa);
+#               3- 4 (virchowiana); 4- 5 (não classificada)
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, casos == 0, !is.na(formaclini_cat)) %>%
+  group_by(formaclini_cat) %>%
+  summarize(n = n()) %>%
+  mutate(freq = n / sum(n) * 100)
+
+# forma clínica
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, !is.na(formaclini_cat)) %>%
+  ggplot(mapping = aes(x = formaclini_cat, y = ..prop.., group = 1)) +
+  geom_bar(color = 'tomato2', fill = 'tomato2') +
+  theme_pubclean() +
+  geom_text(aes(label = scales::percent(round(..prop.., 2)), 
+                y=..prop..), stat="count", vjust=-.5) +
+  scale_y_continuous(limits = c(0, 1),labels = scales::percent) +
+  labs(x  = 'Forma clínica', y =  '%', caption  = 'Fonte: Sinan/SVS/MS.   Valores NA excluídos.') +
+  theme(plot.caption = element_text(size = 8, hjust = 0),
+        plot.background = element_rect(fill = "gray92")) +
+  facet_grid(. ~ casos_cat) + theme(axis.text.x = element_text(vjust = 0.5, 
+    angle = 30))
+
+
+
+
+
+## NÚMERO DE LESÕES 
+summary(prisio$lesoes, prisio$casos == 1)
+
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, casos == 0, !is.na(lesoes_cat)) %>%
+  group_by(lesoes_cat) %>%
+  summarize(n = n()) %>%
+  mutate(freq = n / sum(n) * 100)
+  
+
+prisio %>% 
+  filter(!is.na(lesoes_), !is.na(classopera_cat)) %>%
+  ggplot(mapping = aes(x = classopera_cat, y = lesoes_)) + 
+  geom_boxplot(mapping = aes(group = cut_width(classopera_, 0.1))) +
+  theme_light() +
+  facet_grid(. ~ casos)
+
+prisio %>% 
+  filter(!is.na(lesoes), !is.na(formaclini_)) %>%
+  ggplot(mapping = aes(x = formaclini_, y = lesoes)) + 
+  geom_boxplot(mapping = aes(group = cut_width(formaclini_, 0.1))) +
+  theme_light()
+
+prisio %>% 
+  filter(!is.na(NU_LESOES)) %>%
+  ggplot(mapping = aes(x = formaclini_, y = NU_LESOES)) + 
+  geom_boxplot(mapping = aes(group = cut_width(formaclini_, 0.1))) +
+  theme_light()
+
+
+
+
+### MODO DE ENTRADA 
+# MOdo de entrada: 0- 1 (caso novo); 1- 6 (recidiva); 2- 7 (outros ingressos);
+#                  3- 2,3,4,5 (transferências)
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, casos == 0, !is.na(modoentr_cat)) %>%
+  group_by(modoentr_cat) %>%
+  summarize(n = n()) %>%
+  mutate(freq = n / sum(n) * 100)
+
+
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, !is.na(modoentr_cat)) %>%
+  ggplot(mapping = aes(x = modoentr_cat, y = ..prop.., group = 1)) +
+  geom_bar(color = 'tomato2', fill = 'tomato2') +
+  theme_pubclean() +
+  geom_text(aes(label = scales::percent(round(..prop.., 2)), 
+                y=..prop..), stat="count", vjust=-.5) +
+  scale_y_continuous(limits = c(0, 1),labels = scales::percent) +
+  labs(x  = 'Modo de entrada', y =  '%', caption  = 'Fonte: Sinan/SVS/MS.') +
+  theme(plot.caption = element_text(size = 8, hjust = 0),
+        plot.background = element_rect(fill = "gray92")) +
+  facet_grid(. ~ casos_cat)
+
+
+
+
+
+## MODO DE DETECÇÃO 
+
+# Modo de detecção: 0- 1 (encaminhamento); 1- 2 (demanda espontânea);
+#                    2- 3 (exame de coletividade); 3- 4 (exame de contatos);
+#                    4- 5 (outros modos)
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, casos == 0) %>%
+  group_by(mododetect_cat) %>%
+  summarize(n = n()) %>%
+  mutate(freq = n / sum(n) * 100)
+
+
+
+prisio %>%
+  filter(EXCLU_ENTRAD != 1) %>%
+  ggplot(mapping = aes(x = mododetect_cat, y = ..prop.., group = 1)) +
+  geom_bar(color = 'tomato2', fill = 'tomato2') +
+  theme_pubclean() +
+  geom_text(aes(label = scales::percent(round(..prop.., 2)), 
+                y=..prop..), stat="count", vjust=-.5) +
+  scale_y_continuous(limits = c(0, 1),labels = scales::percent) +
+  labs(x  = 'Modo de detecção', y =  '%', caption  = 'Fonte: Sinan/SVS/MS.') +
+  theme(plot.caption = element_text(size = 8, hjust = 0),
+        plot.background = element_rect(fill = "gray92")) +
+  theme(plot.title = element_text(hjust = 1),legend.background = element_rect(size = 1)) +
+  theme(axis.text = element_text(angle = -15)) +
+  facet_grid(. ~ casos_cat) + theme(axis.text.x = element_text(vjust = 0.5, 
+    angle = 30), axis.text.y = element_text(vjust = 0.75))
+
+
+
+
+## BACILOSCOPIA 
+# Baciloscopia: 0- 1 (positiva); 1- 2 (negativa); 2- 3 (não realizada)
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, casos == 0, !is.na(baciloscop_cat)) %>%
+  group_by(baciloscop_cat) %>%
+  summarize(n = n()) %>%
+  mutate(freq = n / sum(n) * 100)
+
+
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, !is.na(baciloscop_cat)) %>%
+  ggplot(mapping = aes(x = baciloscop_cat, y = ..prop.., group = 1)) +
+  geom_bar(color = 'tomato2', fill = 'tomato2') +
+  theme_pubclean() +
+  geom_text(aes(label = scales::percent(round(..prop.., 2)), 
+                y=..prop..), stat="count", vjust=-.5) +
+  scale_y_continuous(limits = c(0, 1),labels = scales::percent) +
+  labs(x  = 'Baciloscopia', y =  '%', caption  = 'Fonte: Sinan/SVS/MS.   Valores NA excluídos.') +
+  theme(plot.caption = element_text(size = 8, hjust = 0),
+        plot.background = element_rect(fill = "gray92")) +
+  facet_grid(. ~ casos_cat)
+
+
+
+### ESQUEMA TERAPÊUTICO INICIAL 
+# Esquema terapêutico inicial: 0- 1 (PQT 6 doses); 1- 2 (PQT 12 doses);
+# 2- 3 (outros esquemas substitutivos)
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, casos == 0, !is.na(esq_ini_cat)) %>%
+  group_by(esq_ini_cat) %>%
+  summarize(n = n()) %>%
+  mutate(freq = n / sum(n) * 100)
+
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, !is.na(esq_ini_cat)) %>%
+  ggplot(mapping = aes(x = esq_ini_cat, y = ..prop.., group = 1)) +
+  geom_bar(color = 'tomato2', fill = 'tomato2') +
+  theme_pubclean() +
+  geom_text(aes(label = scales::percent(round(..prop.., 2)), 
+                y=..prop..), stat="count", vjust=-.5) +
+  scale_y_continuous(limits = c(0, 1),labels = scales::percent) +
+  labs(x  = 'Esquema terapêutico', y =  '%', caption  = 'Fonte: Sinan/SVS/MS.') +
+  theme(plot.caption = element_text(size = 8, hjust = 0),
+        plot.background = element_rect(fill = "gray92")) +
+  facet_grid(. ~ casos_cat)
+
+
+
+
+
+
+# ESQUEMA TERAPÊUTICO ATUAL 
+# Esquema terapêutico inicial: 0- 1 (PQT 6 doses); 1- 2 (PQT 12 doses);
+# 2- 3 (outros esquemas substitutivos)
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, casos == 0, !is.na(esq_atu_cat)) %>%
+  group_by(esq_atu_cat) %>%
+  summarize(n = n()) %>%
+  mutate(freq = n / sum(n) * 100)
+
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, !is.na(esq_atu_cat)) %>%
+  ggplot(mapping = aes(x = esq_atu_cat, y = ..prop.., group = 1)) +
+  geom_bar(color = 'tomato2', fill = 'tomato2') +
+  theme_pubclean() +
+  geom_text(aes(label = scales::percent(round(..prop.., 2)), 
+                y=..prop..), stat="count", vjust=-.5) +
+  scale_y_continuous(limits = c(0, 1),labels = scales::percent) +
+  labs(x  = 'Esquema terapêutico atual', y =  '%', caption  = 'Fonte: Sinan/SVS/MS.   Valores NA excluídos.') +
+  theme(plot.caption = element_text(size = 8, hjust = 0),
+        plot.background = element_rect(fill = "gray92")) +
+  facet_grid(. ~ casos_cat)
+
+
+
+
+
+
+### CONTATOS REGISTRADOS 
+summary(prisio$contreg_)
+
+
+prisio %>% 
+  filter(EXCLU_SAIDA != 1, !is.na(contreg_)) %>% 
+  summarise(n = n())
+
+prisio %>%
+  count(contreg_)
+
+
+
+prisio %>%
+  filter(EXCLU_SAIDA != 1, !is.na(contreg_), casos == 1) %>%
+  ggplot(mapping = aes(x = contreg_)) +
+  geom_histogram(color = 'red', fill = 'salmon') +
+  theme_pubclean() +
+  labs(x  =  'Contatos registrados', y  =  'Casos de hanseníase',
+       caption  =  'Fonte: Sinan/SVS/MS.   Valores NA excluídos.') +
+  theme(plot.caption = element_text(size = 8, hjust = 0),
+        plot.background = element_rect(fill = "gray92")) +
+  geom_vline(xintercept = 6, linetype = "dashed", color = c('purple4'),
+             size = 1)
+
+
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, !is.na(contreg_), casos == 1) %>%
+  ggplot(mapping = aes(x = contreg_)) +
+  geom_freqpoly(aes(color = classopera_cat), fill = 'salmon') +
+  theme_pubclean() +
+  labs(x  =  'Contatos registrados', y  =  'Casos de hanseníase',
+       caption  =  'Fonte: Sinan/SVS/MS.') +
+  theme(plot.caption = element_text(size = 8, hjust = 0),
+        plot.background = element_rect(fill = "gray92"))
+
+
+
+
+### CONTATOS EXAMINADOS 
+summary(prisio$contexam_)
+
+prisio %>%
+  filter(!is.na(contreg_)) %>%
+  count(contreg_)
+
+
+prisio %>%
+  filter(EXCLU_SAIDA != 1, !is.na(contexam_)) %>%
+  ggplot(mapping = aes(x = contexam_)) +
+  geom_histogram(color = 'blue', fill = 'cornflowerblue') +
+  theme_pubclean() +
+  labs(x  =  'Contatos examinados', y  =  'Freq absoluta',
+       caption  =  'Fonte: Sinan/SVS/MS.') +
+  theme(plot.caption = element_text(size = 8, hjust = 0),
+        plot.background = element_rect(fill = "gray92"))
+
+
+
+
+### NERVOS AFETADOS 
+summary(prisio$nervos_)
+
+
+prisio %>%
+  count(nervos_)
+
+
+prisio %>%
+  filter(EXCLU_ENTRAD != 1) %>%
+  ggplot(mapping = aes(x = nervos_)) +
+  geom_histogram(color = 'blue', fill = 'cornflowerblue') +
+  theme_pubclean() +
+  labs(x  =  'Contatos examinados', y  =  'Freq absoluta',
+       caption  =  'Fonte: Sinan/SVS/MS.') +
+  theme(plot.caption = element_text(size = 8, hjust = 0),
+        plot.background = element_rect(fill = "gray92"))
+
+
+
+
+## TIPO DE SAÍDA 
+# Tipode saída: 0- registro ativo; 1- cura; 2- óbito; 3 - abandono; 
+#4 - transferências (3, 4, 5 e 9)
+prisio %>%
+  filter(EXCLU_SAIDA != 1, casos == 0, !is.na(alta_cat)) %>%
+  group_by(alta_cat) %>%
+  summarize(n = n()) %>%
+  mutate(freq = n / sum(n) * 100) %>%
+  print(n = 25)
+
+
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, !is.na(alta_cat)) %>%
+  ggplot(mapping = aes(x = alta_cat, y = ..prop.., group = 1)) +
+  geom_bar(color = 'tomato2', fill = 'tomato2') +
+  theme_pubclean() +
+  geom_text(aes(label = scales::percent(round(..prop.., 2)), 
+                y=..prop..), stat="count", vjust=-.5) +
+  scale_y_continuous(limits = c(0, 1),labels = scales::percent) +
+  labs(x  = 'Tipo de saída', y =  '%', caption  = 'Fonte: Sinan/SVS/MS.') +
+  theme(plot.caption = element_text(size = 8, hjust = 0),
+        plot.background = element_rect(fill = "gray92")) +
+  facet_grid(. ~ casos_cat)
+
+
+
+
+### UNIDADE DA FEDERAÇÃO 
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, casos == 0) %>%
+  group_by(uf_cat) %>%
+  summarize(n = n()) %>%
+  mutate(freq = n / sum(n) * 100) %>%
+  print(n = 25)
+
+
+
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, casos == 1, !is.na(SG_UF)) %>%
+  group_by(SG_UF) %>%
+  summarize(n = n()) %>%
+  mutate(freq = n / sum(n) * 100) %>%
+  print(n = 1e3)
+
+
+## UF casos novos 
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, modoentr_ == 0, casos == 1) %>%
+  group_by(SG_UF) %>%
+  summarise(n = n()) %>%
+  mutate(freq = n / sum(n) * 100) %>%
+  print(n = 1e3)
+
+# UF registro ativo
+prisio %>%
+  filter(EXCLU_SAIDA != 1, alta_ == 0, casos == 1) %>%
+  group_by(SG_UF) %>%
+  summarise(n = n()) %>%
+  mutate(freq = n / sum(n) * 100) %>%
+  print(n = 1e3)
+
+# UF curados
+prisio %>%
+  filter(EXCLU_SAIDA != 1, alta_ == 1, casos == 1) %>%
+  group_by(SG_UF) %>%
+  summarise(n = n()) %>%
+  mutate(freq = n / sum(n) * 100) %>%
+  print(n = 1e3)
+
+# UF contatos
+prisio %>%
+  filter(EXCLU_SAIDA != 1, alta_ == 0, casos == 1) %>%
+  group_by(SG_UF, contexam_, contreg_) %>%
+  summarise(n = n()) %>%
+  print(n = 1e3)
+
+# UF x Ano diag
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, casos == 1) %>%
+  group_by(SG_UF, ano_diag) %>%
+  summarise(n = n()) %>%
+  spread(ano_diag, n) %>%
+  print(n = 1e3)
+
+# UF x ano diag por caso novo e vigilância ativa
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, modoentr_ == 0, casos == 1) %>%
+  group_by(SG_UF, ano_diag) %>%
+  summarise(n = n()) %>%
+  spread(ano_diag, n) %>%
+  print(n = 1e3)
+
+
+
+# UF x ano diag vigilância passiva
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, modoentr_ == 0, mododetect_ == 2 & 3, casos == 1) %>%
+  group_by(SG_UF, ano_diag) %>%
+  summarise(n = n()) %>%
+  spread(ano_diag, n) %>%
+  print(n = 1e3)
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Meses até o último comparecimento
+table(prisio$ano_diag)
+
+prisio_copia$mes_ultcomp <- as.character(round((prisio_copia$DTULTCOMP - prisio_copia$DT_DIAG)/(365.25/12)))
+
+prisio$mes_ultcomp <- is.numeric(prisio$mes_ultcomp)
+
+dif.ultcomp <- (round((difftime(prisio_copia$DTULTCOMP, prisio_copia$DT_DIAG,
+                                units = 'days')/(365.25/12)), digits = 0))
+
+prisio_copia["dif.ultcomp"] <- dif.ultcomp #Incorpora a variável dif.idade no BD
+
+prisio_copia %>%
+  filter(EXCLU_SAIDA != 1, dif.ultcomp >= 0, alta_cat2 == 'Abandono', classopera_cat == 'Multibacilar') %>%
+  ggplot(mapping = aes(x = dif.ultcomp)) +
+  geom_bar() +
+  theme_pubclean()
+
+
+
+
+
+table(prisio_copia$dif.ultcomp)
+
+
+
+
+
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, alta_cat == 'Abandono') %>%
+  group_by(EPIS_RACIO) %>%
+  summarize(n = n()) %>%
+  mutate(freq = n / sum(n) * 100) %>%
+  print(n = 1e3)
+
+
+
+
+
+
+
+# Modo de detecção de casos novos
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, modoentr_ == 0, casos == 1, !is.na(gif_aval_cat)) %>%
+  ggplot(mapping = aes(x = mododetect_cat, fill = gif_aval_cat)) +
+  geom_bar() +
+  theme_pubclean() +
+  labs(x  =  'Modo de detecção', y  =  'Casos novos',
+       caption  =  'Fonte: Sinan/SVS/MS.') +
+  theme(plot.caption = element_text(size = 8, hjust = 0),
+        plot.background = element_rect(fill = "gray92"))
+
+
+
+
+prisio %>%
+  filter(EXCLU_ENTRAD != 1, casos == 1, modoentr_cat ==  'Caso novo') %>%
+  ggplot(mapping = aes(x = mododetect_cat, y = ..prop.., group = 1, fill = gif_aval_cat)) +
+  geom_bar(color = 'tomato2', fill = 'tomato2') +
+  theme_pubclean() +
+  geom_text(aes(label = scales::percent(round(..prop.., 2)), 
+                y=..prop..), stat="count", vjust=-.5) +
+  scale_y_continuous(limits = c(0, 1),labels = scales::percent) +
+  labs(x  = 'Modo de detecção', y =  '%', caption  = 'Fonte: Sinan/SVS/MS.') +
+  theme(plot.caption = element_text(size = 8, hjust = 0),
+        plot.background = element_rect(fill = "gray92")) +
+  theme(plot.title = element_text(hjust = 1),legend.background = element_rect(size = 1)) +
+  theme(axis.text = element_text(angle = -15)) +
+  theme(axis.text.x = element_text(vjust = 0.5, 
+                angle = 30), axis.text.y = element_text(vjust = 0.75))
+
+
+
+
+prisio_copia %>%
+  filter(EXCLU_SAIDA != 1, dif.ultcomp >= 0, alta_cat2 == 'Abandono', classopera_cat == 'Multibacilar') %>%
+  ggplot(mapping = aes(x = dif.ultcomp)) +
+  geom_bar(color = 'goldenrod3', fill = 'goldenrod3') +
+  theme_pubclean() +
+  labs(x = 'Mês do último comparecimento', y = 'MB em abandono', caption = 'Fonte: Sinan/SVS/MS.
+MB: Multibacilar') +
+  theme(plot.caption = element_text(size = 8, hjust = 0),
+        plot.background = element_rect(fill = "gray92"))
+
+
+
+prisio_copia %>%
+  filter(EXCLU_SAIDA != 1, alta_cat2 == 'Abandono', classopera_cat == 'Multibacilar') %>%
+  ggplot(mapping = aes(x = DOSE_RECEB)) +
+  geom_bar(color = 'goldenrod3', fill = 'goldenrod3') +
+  theme_pubclean() +
+  labs(x  = 'Dose recebida', y =  'Abandono de multbacilares', caption  = 'Fonte: Sinan/SVS/MS.') +
+  theme(plot.caption = element_text(size = 8, hjust = 0),
+        plot.background = element_rect(fill = "gray92")) +
+  theme(plot.title = element_text(hjust = 1),legend.background = element_rect(size = 1))
+
+
+rm(dif.ultcomp)
